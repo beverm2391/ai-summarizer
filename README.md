@@ -1,4 +1,4 @@
->The full writeup and documentation are right here on my blog, [Ben's Blocks](https://blocks.beneverman.com/projects/ai-summarizer).
+The full writeup and documentation are right here on my blog, [Ben's Blocks](https://blocks.beneverman.com/projects/ai-summarizer).
 
 # Accurate Summarization with AI
 
