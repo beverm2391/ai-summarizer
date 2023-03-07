@@ -1,4 +1,4 @@
-The full writeup and documentation are right here on my blog, [Ben's Blocks](https://blocks.beneverman.com/projects/ai-summarizer).
+The full writeup and documentation are right here on my blog, [Ben's Blocks](https://blocks.beneverman.com/projects/ai-summarizer). Reach out to me on [Twitter](https://www.twitter.com/beverm2391).
 
 # Accurate Summarization of Scientific Articles with AI
 
