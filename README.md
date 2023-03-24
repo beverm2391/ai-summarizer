@@ -1,6 +1,8 @@
-The full writeup and documentation are right here on my blog, [Ben's Blocks](https://blocks.beneverman.com/projects/ai-summarizer).
+The full writeup and documentation are right here on my blog, [Ben's Blocks](https://blocks.beneverman.com/projects/ai-summarizer). Reach out to me on [Twitter](https://www.twitter.com/beverm2391).
 
-# Accurate Summarization with AI
+# Accurate Summarization of Scientific Articles with AI
+
+Out of the box LLMs like GPT-3 are not well suited for summarizing scientific articles. They hallucinate, have limited to no knowledge of current events, and they have limited context window. I built a NLP pipeline to solve these problems and generate accurate summaries (with citations) in about 30 seconds.
 
 ## Introduction
 I started playing with GPT-3 in November of 2021. I quickly realized I could leverage Natural Language Processing (NLP) to significantly speed up the pace of my schoolwork. Out of the box, the newest Large Language Models (LLMs) can do quite a bit out of the box. They can:
