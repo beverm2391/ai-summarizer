@@ -1,8 +1,15 @@
+from dotenv import load_dotenv
+import os
+import sys
+load_dotenv(".env")
+
+sys.path.append(os.environ.get("PACKAGE_PATH"))
+
 import time
 
-from mongodoc import Mongodoc
-from async_api import run_chat_async
-from sync_api import Chat, Completion
+from package.mongodoc import Mongodoc
+from package.async_api import run_chat_async
+from package.sync_api import Chat, Completion
 
 class AsyncChain:
     def __init__(self, mongodoc: Mongodoc):

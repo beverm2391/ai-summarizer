@@ -1,3 +1,9 @@
+from dotenv import load_dotenv
+import os
+import sys
+load_dotenv(".env")
+sys.path.append(os.environ.get("PACKAGE_PATH"))
+
 from langchain.embeddings.openai import OpenAIEmbeddings
 from langchain.document_loaders import PyMuPDFLoader
 from operator import itemgetter
@@ -5,15 +11,12 @@ import numpy as np
 import tiktoken
 from typing import List, Dict, Tuple
 import os
-from dotenv import load_dotenv
 
-load_dotenv(".env")
+from package.sync_api import Chat
+from package.utils import *
 
 # package imports
-from package.utils import *
-from package.sync_api import Chat
-
-
+from package.utils import TokenUtil
 
 
 def dot_product_similarity(doc_data: List[Dict], query_data: Dict) -> List[Tuple[int, float]]:
@@ -24,34 +27,34 @@ def dot_product_similarity(doc_data: List[Dict], query_data: Dict) -> List[Tuple
     top_five_tuples = ordered_tuples[:5]
     return top_five_tuples
 
-def embed_query(query: str):
-    base_embeddings = OpenAIEmbeddings(openai_api_key=os.getenv("OPENAI_API_KEY"))
-    embedding = base_embeddings.embed_query(query)
-    return {"query" : query, "embedding" : embedding}
 
-def embed_doc(text_list : List[str]):
+def embed_query(query: str):
+    base_embeddings = OpenAIEmbeddings(
+        openai_api_key=os.getenv("OPENAI_API_KEY"))
+    embedding = base_embeddings.embed_query(query)
+    return {"query": query, "embedding": embedding}
+
+
+def embed_doc(text_list: List[str]):
     load_dotenv("../.env")
     api_key = os.getenv("OPENAI_API_KEY")
-    base_embeddings = OpenAIEmbeddings(openai_api_key=os.getenv("OPENAI_API_KEY"))
+    base_embeddings = OpenAIEmbeddings(
+        openai_api_key=os.getenv("OPENAI_API_KEY"))
     doc_embeddings = base_embeddings.embed_documents(text_list)
     return doc_embeddings
+
 
 def get_context(query_data, doc_data: List[Dict]) -> List[Dict]:
     top_five_tuples = dot_product_similarity(doc_data, query_data)
     context = []
     for item in top_five_tuples:
         page = item[0]
-        data = {'page': page, 'similarity' : item[1], 'text': doc_data[page - 1]['content'], 'metadata' : doc_data[page - 1]['metadata']}
+        data = {'page': page, 'similarity': item[1], 'text': doc_data[page - 1]
+                ['content'], 'metadata': doc_data[page - 1]['metadata']}
         context.append(data)
     return context
 
-def get_tokens(string: str, model: str) -> int:
-    """Returns the number of tokens in a text string."""
-    encoding = tiktoken.encoding_for_model(model)
-    num_tokens = len(encoding.encode(string))
-    return num_tokens
-
-def format_context(context: List[Dict], model: str, token_limit : int) -> str:
+def format_context(context: List[Dict], model: str, token_limit: int) -> str:
     """Returns a string of the first 1024 tokens of the context."""
     context_string = ""
     meta_list = []
@@ -73,8 +76,9 @@ def format_context(context: List[Dict], model: str, token_limit : int) -> str:
             break
     return context_string, meta_list
 
-class Mongodoc:
-    def __init__(self, fpath : str):
+
+class Document:
+    def __init__(self, fpath: str):
         self.fpath = fpath
 
     def process_doc(self):
@@ -86,24 +90,26 @@ class Mongodoc:
         # get the doc embeddings
         doc_embeddings = embed_doc([page.page_content for page in data])
         # unpack the data and add the embeddings
-        mongodoc = unpack(data)
-        mongodoc = [{**page, "embedding": embedding} for page, embedding in zip(mongodoc, doc_embeddings)]
+        document = unpack(data)
+        document = [{**page, "embedding": embedding}
+                    for page, embedding in zip(document, doc_embeddings)]
 
-        self.data = mongodoc
-        self.page_text = ' '.join([sanitize_text(page['content']) for page in mongodoc])
-        self.metadata = [page['metadata'] for page in mongodoc]
+        self.data = document
+        self.page_text = ' '.join(
+            [sanitize_text(page['content']) for page in document])
+        self.metadata = [page['metadata'] for page in document]
         return self
-    
-    def get_chunks(self, chunk_size : int):
-        enc = tiktoken.encoding_for_model("text-davinci-003")
-        tokens = enc.encode(self.page_text)
-        # split into chunks of 2800 tokens
-        chunks = [tokens[i:i+2800] for i in range(0, len(tokens), 2800)]
+
+    def get_chunks(self, model: str, chunk_size: int = 2800):
+        tokenutil = TokenUtil(model)
+        tokens = tokenutil.encode(self.page_text)
+        # split into chunks of "chunk_size" tokens
+        chunks = [tokens[i:i+chunk_size] for i in range(0, len(tokens), chunk_size)]
         # decode chunks
-        decoded = [enc.decode(chunk) for chunk in chunks]
+        decoded = [tokenutil.decode(chunk) for chunk in chunks]
         self.chunks = decoded
         return self
-    
+
     def get_citation(self, format: str):
         citation_chat = Chat(temperature=0.9)
         get_citation_prompt = f"Use this metadata to generate a ciation in {format} format: \n\n{self.metadata}"

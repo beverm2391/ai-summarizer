@@ -1,7 +1,13 @@
-import time
+from dotenv import load_dotenv
+import os
+import sys
+load_dotenv(".env")
 
-from sync_api import Chat, Completion
-from mongodoc import Mongodoc
+sys.path.append(os.environ.get("PACKAGE_PATH"))
+
+from package.sync_api import Chat, Completion
+from package.mongodoc import Mongodoc
+import time
 
 
 class Chain:
