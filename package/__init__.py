@@ -6,4 +6,5 @@ from . import mongodoc
 from . import async_chain
 from . import sync_chain
 from . import sync_chain_v2
+from . import sync_chain_v3
 from . import utils

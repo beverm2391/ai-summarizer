@@ -24,7 +24,7 @@ class Chain():
     def chat_summarize(self, instruction = None):
         responses = []
         # default_instruction = "Generate a lengthy and detailed list of direct quotes, main ideas, and passages by from the following text:\n\n"
-        default_instruction = "Generate a list of direct quotes, main ideas, and passages by from the following text:\n\n"
+        default_instruction = "Generate a lengthy, detailed summary from the following text:\n\n"
         for idx, chunk in enumerate(self.document.chunks):
             # init chat (we need to do this every time because the chat object aggregates messages)
             chat = ChatV2(model=self.model)
@@ -62,7 +62,7 @@ class Chain():
 
     def completion_summarize(self, instruction = None):
         # setup inputs 
-        default_instruction = "Generate a list of direct quotes, main ideas, and passages by from the following text:\n\n"
+        default_instruction = "Generate a list of main ideas, from the following text, then write a summary including those main ideas:\n\n"
         prompts = ["\n\n".join([default_instruction] + ([instruction] if instruction else []) + [chunk]) for chunk in self.document.chunks]
         input_tokens = [self.tokenutil.get_tokens(prompt) for prompt in prompts]
 
@@ -95,66 +95,22 @@ class Chain():
     def get_quotes(self, instruction = None):
         pass
 
-    def aggregate(self, texts, token_limit=2000):
-        print(f"Aggregating {len(texts)} texts...")
+    def aggregate(self, summaries):
+        assert len(summaries) == len(self.document.chunks), "Number of summaries must match number of chunks."
+        prompt = "Aggregate the following summaries into a lengthy and detailed paper:\n\n"
+        for summary in summaries:
+            print(f"Adding summary: {summary[:100]}...")
+            prompt += f"{summary}\n\n"
 
-        # setup default instruction
-        default_instruction = "Combine the following passages into one coherent essay:\n\n"
-        default_instruction_tokens = self.tokenutil.get_tokens(default_instruction)
+        # print(f"Prompt:\n\n{prompt}")
+        # aggregate the summaries
+        print(f"Aggregating summaries...")
+        system_prompt = "As a talented academic writer, you possess the exceptional ability to craft well-researched, coherent, and insightful papers. Your task now is to write a comprehensive essay on a topic of your choice. Be sure to explore various aspects of the subject, and analyze the ways in which these elements have shaped our world. Remember to incorporate credible sources, provide a balanced perspective, and captivate your readers with your eloquent writing style."
+        chat = ChatV2(model="gpt-4", temperature=0.7, system_message=system_prompt, max_tokens=2048)
+        data = chat(prompt)
+        print("Summary:\n\n" + data["response"])
+        return data
 
-        # init chat
-        chat = ChatV2(model=self.model, max_tokens=1800)
-
-        # helper functions
-        def aggregate_texts(texts):
-            # re init because chat object aggregates messages which will go over the token limit
-            chat = ChatV2(model=self.model, max_tokens=1800)
-            prompt = default_instruction
-            for text in texts:
-                prompt += f"{text}\n\n"
-            return chat(prompt)
-        
-        # case 1 (only one text)
-        if len(texts) == 1:
-            return texts[0]
-        
-        # case 2 (can fit all texts into one prompt)
-        print("Checking if we can fit all texts into one prompt...")
-        prompt_tokens = default_instruction_tokens + sum([self.tokenutil.get_tokens(text) for text in texts])
-        if prompt_tokens < token_limit - self.token_buffer:
-            print("Yes, we can!")
-            return aggregate_texts(texts)
-        
-        # case 3 (can't fit all texts into one prompt)
-        print("No, we can't. Splitting into chunks...")
-        # for idx, text in enumerate(self.summaries):
-        tokens = prompt_tokens
-        all_text = '\n\n'.join(texts)
-
-        char_interval = 4
-        estimated_error = 200
-        # estimate where to split the text
-        # estimate (4 chars per token * total tokens we can fit in the prompt) - (estimated error to account for the char_interval not being exact)
-        split_at = (char_interval*(token_limit - default_instruction_tokens)) - estimated_error*char_interval
-        print(f"Splitting at {split_at} characters")
-        # split the text
-        chunks = [all_text[i:i+split_at] for i in range(0, len(all_text), split_at)]
-        print(f"Split into {len(chunks)} chunks")
-        # aggregate the chunks
-        responses = []
-        for idx, chunk in enumerate(chunks):
-            print(f"Generating aggregation for chunk {idx+1} of {len(chunks)}: {chunk[:100]}...")
-            response = aggregate_texts([chunk])
-            tokens = response["tokens"]
-            response = response["response"]
-            print(f"Aggreate {idx+1} generated, length {tokens} tokens.\n\n{response}")
-            self.total_tokens += tokens
-            responses.append(response)
-            print("\n\n")
-        # pass the chunks recursively to this function
-        return self.aggregate(responses)
-
-    
     def chain_summarize(self, summary_type="completion", instruction=None):
         if self.summaries == []:
             if summary_type == "chat":
@@ -175,4 +131,5 @@ class Chain():
         final_summary = final_summary_data["response"].strip()
         print(f"Final summary:\n\n{final_summary}")
         print(f"Total tokens used: {self.total_tokens}")
+        self.final_summary_data = final_summary_data
         return final_summary_data
