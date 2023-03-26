@@ -1,12 +1,13 @@
-from package.utils import TokenUtil
-from package.document import Document
-from package.sync_api import ChatV2, CompletionV2
 from dotenv import load_dotenv
 import os
 import sys
 load_dotenv(".env")
 
 sys.path.append(os.environ.get("PACKAGE_PATH"))
+
+from package.utils import TokenUtil
+from package.document import Document
+from package.sync_api import ChatV2, CompletionV2
 
 
 class Chain():
@@ -130,32 +131,66 @@ class Chain():
     def get_quotes(self, instruction=None):
         pass
 
-    def aggregate(self, summaries):
-        assert len(summaries) == len(
-            self.document.chunks), "Number of summaries must match number of chunks."
-        assert self.tokenutil.get_tokens(
-            ''.join(summaries)) < 6000, "Summaries too long."
+    def sim_api_call(self, text, token_limit):
+        print("Made sim api call")
+        assert self.tokenutil.get_tokens(text) < token_limit, f"You passed {self.tokenutil.get_tokens(text)} tokens to the sim api call, which exceeds the limit of {token_limit}"
+        # reduce the input to half. simulating a prompt and response
+        return text[len(text)//2:]
 
+    def aggregate(self, summaries, test=False):
+        # ! check if we need to split the input
+        assert summaries and len(summaries) > 0, "No summaries to aggregate"
+        input_token_limit = 8192 - 2048 - 100  # 8192 is the limit, 2048 is the response, 100 is the buffer
+        print(f"Input token limit: {input_token_limit} tokens.")
+        joined = ' '.join(summaries)
+        tokens = self.tokenutil.get_tokens(joined)
+
+        # ! split the input if it is too large
+
+        if tokens > input_token_limit:
+            print(f"Aggregated input token size {tokens} exceeds limit {input_token_limit}.")
+            print("Splitting input into multiple chunks...")
+            chunks = self.tokenutil.split_tokens(joined, input_token_limit - 100)
+            print(f"Split into {len(chunks)} chunks.")
+            print(f"Chunk sizes: " + ', '.join([str(self.tokenutil.get_tokens(chunk)) for chunk in chunks]) + ".")
+            print("Generating summaries for each chunk...")
+            summaries = []
+            for chunk in chunks:
+                # make sure to pass test=True
+                summaries.append(self.aggregate(chunk, test=test))
+            print("Summaries generated.")
+        else:
+            print(f"Aggregated input token size {tokens} is within limit {input_token_limit}.")
+
+        # ! if test, return the sim api call
+        if test:
+            print("Testing mode, using sim api call...")
+            data = self.sim_api_call(' '.join(summaries), input_token_limit)
+            summaries = [data]
+            return
+
+        # ! else base case
         prompt = f"""
-            Aggregate the following information into a lengthy and detailed 1000-2000word paper with appropriate subheadings.
-            Include a reference list with this citation: {self.document.citation}. 
-            Inclde at least 2-3 direct quotes with the appropriate in-text citations.
-            Make sure to output in markdown format:\n\n"
-        """
+                Aggregate the following information into a lengthy and detailed 1000-2000word paper with appropriate subheadings.
+                Include a reference list with this citation: {self.document.citation}. 
+                Inclde at least 2-3 direct quotes with the appropriate in-text citations.
+                Make sure to output in markdown format:\n\n"
+            """
 
         for summary in summaries:
-            print(f"Adding summary: {summary[:100]}...")
+            # print(f"Adding summary: {summary[:100]}...")
             prompt += f"{summary}\n\n"
 
         # print(f"Prompt:\n\n{prompt}")
         # aggregate the summaries
         print(f"Aggregating summaries...")
         system_prompt = "As a talented academic writer, you possess the exceptional ability to craft well-researched, coherent, and insightful papers. Your task now is to write a comprehensive 1000-2000 word essay on the topic provide it. Be sure to explore various aspects of the subject, and analyze the ways in which these elements have shaped our world. Remember to incorporate credible sources, provide a balanced perspective, and captivate your readers with your eloquent writing style. You will always use markdown format."
+        
         chat = ChatV2(model="gpt-4", temperature=0.7, system_message=system_prompt, max_tokens=2048)
         data = chat(prompt)
         print("Summary:\n\n" + data["response"])
         return data
-
+    
     def chain_summarize(self, summary_type="completion", instruction=None):
         if self.summaries == []:
             if summary_type == "chat":
@@ -179,3 +214,6 @@ class Chain():
         print(f"Total tokens used: {self.total_tokens}")
         self.final_summary_data = final_summary_data
         return final_summary_data
+    
+    def __repr__(self):
+        return f"Summarizer(document={self.document}), v4"

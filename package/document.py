@@ -11,12 +11,11 @@ import numpy as np
 import tiktoken
 from typing import List, Dict, Tuple
 import os
+import asyncio
 
 from package.sync_api import Chat
 from package.utils import *
-
-# package imports
-from package.utils import TokenUtil
+from package.async_api_v2 import run_chat_async
 
 
 def dot_product_similarity(doc_data: List[Dict], query_data: Dict) -> List[Tuple[int, float]]:
@@ -78,8 +77,53 @@ def format_context(context: List[Dict], model: str, token_limit: int) -> str:
 
 
 class Document:
-    def __init__(self, fpath: str):
+    def __init__(self, fpath: str, model='gpt-3.5-turbo'):
         self.fpath = fpath
+        self.model = model
+
+    def generate_schemas(self, template, example):
+        print("Generating schema...")
+        if self.chunks is None:
+            self.process_doc()
+        prompts = [f"""
+                Here is an example schema:
+                {template[1]}
+
+                Instructions:
+                    1. I have given you a section from an article
+                    2. Identify the main idea
+                    3. Identify sub ideas of this section, if applicable, else leave blank
+                    4. Use the example schema to generate a new schema with your ideas.
+                    5. Do not include any other text, only output the schema and nothing else 
+
+                Here is an example output:
+                {example}
+
+                Context:
+                {chunk}
+
+                Output:
+                """
+            for chunk in self.chunks]
+
+        data = []
+        asyncio.run(run_chat_async(prompts, data, model=self.model))
+        schemas = [item["response"].replace("\n", " ").strip() for item in data]
+        final_schema = [
+            {
+                "title": "Introduction",
+                "prompt": "Write an introduction."
+            },
+            {*schemas},
+            {
+                "title": "Conclusion",
+                "prompt": "Write a conclusion.",
+            }
+        ]
+        self.schema = final_schema
+
+    def pretty_print(self, data):
+        return pretty_print(data)
 
     def process_doc(self):
         loader = PyMuPDFLoader(self.fpath)
@@ -100,8 +144,8 @@ class Document:
         self.metadata = [page['metadata'] for page in document]
         return self
 
-    def get_chunks(self, model: str, chunk_size: int = 2800):
-        tokenutil = TokenUtil(model)
+    def get_chunks(self, chunk_size: int = 2800):
+        tokenutil = TokenUtil(self.model)
         tokens = tokenutil.encode(self.page_text)
         # split into chunks of "chunk_size" tokens
         chunks = [tokens[i:i+chunk_size] for i in range(0, len(tokens), chunk_size)]
@@ -111,7 +155,7 @@ class Document:
         return self
 
     def get_citation(self, format: str):
-        citation_chat = Chat(temperature=0.9)
+        citation_chat = Chat(temperature=0.9, model=self.model)
         get_citation_prompt = f"Use this metadata to generate a ciation in {format} format: \n\n{self.metadata}"
         final_citation = citation_chat(get_citation_prompt)
         self.citation = final_citation

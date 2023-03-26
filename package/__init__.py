@@ -4,7 +4,8 @@ from . import sync_api
 from . import document
 from . import mongodoc
 from . import async_chain
+from . import schemas
 from . import sync_chain
 from . import sync_chain_v2
-from . import sync_chain_v3
+from . import sync_chain_v4
 from . import utils

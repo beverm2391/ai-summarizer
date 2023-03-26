@@ -27,7 +27,7 @@ def async_wrap(func):
 
 # ! Chat --------------------------------------------------------------------------------------------
 
-def chat_response(temperature, model, message):
+def chat_response(temperature, model, message, max_tokens):
     openai.api_key = os.getenv("OPENAI_API_KEY")
     messages = [
         {"role": "system", "content": "You are a helpful assistant."},
@@ -36,7 +36,8 @@ def chat_response(temperature, model, message):
     raw_response = openai.ChatCompletion.create(
         model=model,
         messages=messages,
-        temperature=temperature
+        temperature=temperature,
+        max_tokens=max_tokens,
     )
     text = raw_response['choices'][0]['message']['content'].strip()
     tokens = raw_response['usage']['total_tokens']
@@ -47,9 +48,9 @@ def chat_response(temperature, model, message):
 
 async_chat_response = async_wrap(chat_response)
 
-async def asyncChatResponse(temperature, model, message, response_list, messages_list):
+async def asyncChatResponse(temperature, model, message, max_tokens, response_list, messages_list):
     start_time = time.perf_counter()
-    response = await async_chat_response(temperature, model, message)
+    response = await async_chat_response(temperature, model, message, max_tokens)
     elapsed = time.perf_counter() - start_time
 
     index = messages_list.index(message) + 1
@@ -58,5 +59,5 @@ async def asyncChatResponse(temperature, model, message, response_list, messages
     print(f"Response time: {elapsed:0.2f} seconds.")
     response_list.append(response)
 
-async def run_chat_async(messages_list, response_list, temperature=0.7, model='gpt-3.5-turbo'):
-    await asyncio.gather(*(asyncChatResponse(temperature, model, message, response_list, messages_list) for message in messages_list))
+async def run_chat_async(messages_list, response_list, max_tokens=1000, temperature=0.7, model='gpt-3.5-turbo'):
+    await asyncio.gather(*(asyncChatResponse(temperature, model, message, max_tokens, response_list, messages_list) for message in messages_list))
